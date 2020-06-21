@@ -85,6 +85,7 @@ func main() {
 
 	})
 
+	//health route for kubernetes
 	router.GET("/health", func(ctx *gin.Context) {
 		ctx.String(
 			http.StatusOK,
