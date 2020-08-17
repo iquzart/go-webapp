@@ -13,7 +13,7 @@ trigger:
   batch: true
   branches:
     include:
-    - master
+    - cicd-test
     #- development
   paths:
     exclude:
@@ -108,7 +108,7 @@ stages:
 
 
 - stage: DeployDevelopment
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/development'))
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/cicd-test'))
   dependsOn: Build
 
   jobs:
