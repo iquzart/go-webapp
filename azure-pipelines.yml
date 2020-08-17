@@ -123,4 +123,8 @@ stages:
         runOnce:
           deploy:
             steps:
-            - script: touch /tmp/azure-devops-test.txt
+
+            - task: Bash@3
+              inputs:
+                targetType: 'inline'
+                script: 'docker run --name goapp -d -p 8080:8080 $(imageRepository):$(tag)'
