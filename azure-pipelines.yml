@@ -128,7 +128,7 @@ stages:
               inputs:
                 artifact: drop
          
-            - script: tag=`cat $(Pipeline.Workspace)/drop/variables/tag` && echo "##vso[task.setvariable variable=tag]$tag"
+            - script: tag=`cat $(Pipeline.Workspace)/drop/tag` && echo "##vso[task.setvariable variable=tag]$tag"
               displayName: Set the Git Short SHA as an environment variable
 
             - task: Bash@3
