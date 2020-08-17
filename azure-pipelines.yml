@@ -1,0 +1,137 @@
+#
+# Azure DevOps pipeline
+#
+# Application:     <Application Name>
+# Deployment:      Docker Host
+# Deployment tool: 
+# Maintained by:   Muhammed Iqbal 
+#
+
+
+
+trigger:
+  batch: true
+  branches:
+    include:
+    - cicd-test
+    #- development
+  paths:
+    exclude:
+    - docker/* 
+    - azure-pipelines.yml
+    - README.md
+
+
+# Don't run against PRs
+pr: none
+
+variables:
+- group: eatroot-res
+
+- name: tag
+  value:  $(Build.SourceBranchName)-$(GitShortSha)
+
+- name: vmImageName
+  value: 'ubuntu-latest'
+
+- name: containerRegistryServiceConnection
+  value: 'Docker Hub'
+
+- name: imageRepository
+  value: 'diquzart/go-webapp'
+
+#- name: kubernetesEnvironmentDev
+#  value: '<Development Env Name>'
+
+- name: DockerEnvironmentProd
+  value: 'Tst'
+
+#- name: imagePullSecretName
+#  value: '<Image Pull Secret Name>'
+
+#- name: kubernetesNamespaceDev
+#  value: '<Dev Namespace>'
+
+#- name: kubernetesNamespaceProd
+#  value: '<Prod Namespace>'
+  
+
+
+stages:
+- stage: Build
+  displayName: Build image
+
+  jobs:  
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    steps:
+    - checkout: self
+      clean: true
+      displayName: Cleaning local repo
+
+    - script: GitShortSha=`git rev-parse --short HEAD` && echo "##vso[task.setvariable variable=GitShortSha]$GitShortSha"
+      displayName: Set the Git Short SHA as an environment variablie
+        
+    - task: Docker@2
+      displayName: Build Container Image
+      inputs:
+        containerRegistry: '$(containerRegistryServiceConnection)'
+        repository: '$(imageRepository)'
+        command: 'build'
+        Dockerfile: '**/Dockerfile'
+        tags: '$(tag)'
+        
+    - task: Docker@2
+      displayName: Push Image to ACR
+      inputs:
+        containerRegistry: '$(containerRegistryServiceConnection)'
+        repository: '$(imageRepository)'
+        command: 'push'
+        tags: '$(tag)'
+
+    - task: Bash@3
+      displayName: Set variables to share between stages 
+      inputs:
+        targetType: 'inline'
+        script: |
+          mkdir $(System.DefaultWorkingDirectory)/variables
+          echo $(tag) > $(System.DefaultWorkingDirectory)/variables/tag
+
+    - task: PublishPipelineArtifact@1
+      displayName: Publish artifacts
+      inputs:
+        targetPath: '$(System.DefaultWorkingDirectory)/variables'
+        artifact: 'drop'
+
+
+- stage: DeployDevelopment
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/cicd-test'))
+  dependsOn: Build
+
+  jobs:
+  - deployment: Development
+    displayName: Deploy Development
+    pool:
+      vmImage: $(vmImageName)
+    environment:
+      name: $(DockerEnvironmentProd)
+      resourceType: VirtualMachine
+    strategy:
+        runOnce:
+          deploy:
+            steps:
+
+            - task: DownloadPipelineArtifact@2
+              inputs:
+                artifact: drop
+         
+            - script: tag=`cat $(Pipeline.Workspace)/drop/tag` && echo "##vso[task.setvariable variable=tag]$tag"
+              displayName: Set the Git Short SHA as an environment variable
+
+            - task: Bash@3
+              inputs:
+                targetType: 'inline'
+                script: 'docker run --name goapp -d -p 8080:8080 $(imageRepository):$(tag)'
